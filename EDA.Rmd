@@ -1,0 +1,521 @@
+---
+title: "EDA"
+author: "Ryan Harrington"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(
+  tidyverse, 
+  moments,
+  corrplot, 
+  viridis,
+  tidymodels
+)
+
+theme_set(theme_minimal())
+```
+
+# Background
+
+Our data comes from the [Tidy Tuesday repository](https://github.com/rfordatascience/tidytuesday/blob/master/data/2021/2021-09-14/readme.md). This is a great place to source datasets from for learning exercises. There are two datasets that we will work with:
+
+-   Historical Billboard Hot 100
+-   Spotify audio features
+
+From the Tidy Tuesday description:
+
+> The data this week comes from [Data.World](https://data.world/kcmillersean/billboard-hot-100-1958-2017#) by way of Sean Miller, [Billboard.com](http://billboard.com/) and Spotify.
+>
+> [Billboard Top 100 - Wikipedia](https://en.wikipedia.org/wiki/Billboard_Hot_100)
+>
+> > The Billboard Hot 100 is the music industry standard record chart in the United States for songs, published weekly by Billboard magazine. Chart rankings are based on sales (physical and digital), radio play, and online streaming in the United States.
+>
+> Billboard Top 100 [Article](https://www.billboard.com/articles/business/chart-beat/9335811/drake-breaks-record-most-hot-100-entries)
+>
+> > Drake rewrites the record for the most entries ever on the Billboard Hot 100, as he lands his 208th career title on the latest list, dated March 21
+>
+> [ThePudding](https://pudding.cool/2017/03/music-history/) has a neat interactive experience by year with audio!
+
+# Data Dictionary
+
+Further, a data dictionary is provided:
+
+> ### Data Dictionary
+>
+> #### `billboard.csv`
+>
+> | variable                 | class     | description                                                                                                                                                                      |
+> |:---------------------|:-----------------|:-------------------------------|
+> | `url`                    | character | Billboard Chart URL                                                                                                                                                              |
+> | `week_id`                | character | Week ID                                                                                                                                                                          |
+> | `week_position`          | double    | Week position 1: 100                                                                                                                                                             |
+> | `song`                   | character | Song name                                                                                                                                                                        |
+> | `performer`              | character | Performer name                                                                                                                                                                   |
+> | `song_id`                | character | Song ID, combo of song/singer                                                                                                                                                    |
+> | `instance`               | double    | Instance (this is used to separate breaks on the chart for a given song. Example, an \> instance of 6 tells you that this is the sixth time this song has appeared on the chart) |
+> | `previous_week_position` | double    | Previous week position                                                                                                                                                           |
+> | `peak_position`          | double    | Peak position as of that week                                                                                                                                                    |
+> | `weeks_on_chart`         | double    | Weeks on chart as of that week                                                                                                                                                   |
+
+> #### `audio_features.csv`
+>
+> | `variable`                  | class     | description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+> |:---------------------|:-----------------|:-------------------------------|
+> | `song_id`                   | character | Song ID                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+> | `performer`                 | character | Performer name                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+> | `song`                      | character | Song                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+> | `spotify_genre`             | character | Genre                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+> | `spotify_track_id`          | character | Track ID                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+> | `spotify_track_preview_url` | character | Spotify URL                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+> | `spotify_track_duration_ms` | double    | Duration in ms                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+> | `spotify_track_explicit`    | logical   | Is explicit                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+> | `spotify_track_album`       | character | Album name                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+> | `danceability`              | double    | Danceability describes how suitable a track is for dancing based on a combination of musical elements including tempo, rhythm stability, beat strength, and overall regularity. A value of 0.0 is least danceable and 1.0 is most danceable.                                                                                                                                                                                                                                                                       |
+> | `energy`                    | double    | Energy is a measure from 0.0 to 1.0 and represents a perceptual measure of intensity and activity. Typically, energetic tracks feel fast, loud, and noisy. For example, death metal has high energy, while a Bach prelude scores low on the scale. Perceptual features contributing to this attribute include dynamic range, perceived loudness, timbre, onset rate, and general entropy.                                                                                                                          |
+> | `key`                       | double    | The estimated overall key of the track. Integers map to pitches using standard Pitch Class notation . E.g. 0 = C, 1 = C♯/D♭, 2 = D, and so on. If no key was detected, the value is -1.                                                                                                                                                                                                                                                                                                                            |
+> | `loudness`                  | double    | The overall loudness of a track in decibels (dB). Loudness values are averaged across the entire track and are useful for comparing relative loudness of tracks. Loudness is the quality of a sound that is the primary psychological correlate of physical strength (amplitude). Values typical range between -60 and 0 db.                                                                                                                                                                                       |
+> | `mode`                      | double    | Mode indicates the modality (major or minor) of a track, the type of scale from which its melodic content is derived. Major is represented by 1 and minor is 0.                                                                                                                                                                                                                                                                                                                                                    |
+> | `speechiness`               | double    | Speechiness detects the presence of spoken words in a track. The more exclusively speech-like the recording (e.g. talk show, audio book, poetry), the closer to 1.0 the attribute value. Values above 0.66 describe tracks that are probably made entirely of spoken words. Values between 0.33 and 0.66 describe tracks that may contain both music and speech, either in sections or layered, including such cases as rap music. Values below 0.33 most likely represent music and other non-speech-like tracks. |
+> | acousticness                | double    | A confidence measure from 0.0 to 1.0 of whether the track is acoustic. 1.0 represents high confidence the track is acoustic.                                                                                                                                                                                                                                                                                                                                                                                       |
+> | `instrumentalness`          | double    | Predicts whether a track contains no vocals. "Ooh" and "aah" sounds are treated as instrumental in this context. Rap or spoken word tracks are clearly "vocal". The closer the instrumentalness value is to 1.0, the greater likelihood the track contains no vocal content. Values above 0.5 are intended to represent instrumental tracks, but confidence is higher as the value approaches 1.0.                                                                                                                 |
+> | `liveness`                  | double    | Detects the presence of an audience in the recording. Higher liveness values represent an increased probability that the track was performed live. A value above 0.8 provides strong likelihood that the track is live.                                                                                                                                                                                                                                                                                            |
+> | `valence`                   | double    | A measure from 0.0 to 1.0 describing the musical positiveness conveyed by a track. Tracks with high valence sound more positive (e.g. happy, cheerful, euphoric), while tracks with low valence sound more negative (e.g. sad, depressed, angry).                                                                                                                                                                                                                                                                  |
+> | `tempo`                     | double    | The overall estimated tempo of a track in beats per minute (BPM). In musical terminology, tempo is the speed or pace of a given piece and derives directly from the average beat duration.                                                                                                                                                                                                                                                                                                                         |
+> | `time_signature`            | double    | Time signature                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+> | `spotify_track_popularity`  | double    | Popularity                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+
+Additional details about the Spotify API used for the audio features dataset can be found [here](https://developer.spotify.com/documentation/web-api/reference/#/operations/get-audio-features).
+
+# Questions for Analysis
+
+We will concentrate on answering two questions:
+
+-   What groups emerge based upon song characteristics?
+-   Can we predict which songs will become Billboard top 10 songs at some point?
+
+# Ingestion
+
+Data can be directly ingested from the Tidy Tuesday repository.
+
+Alternatively, the data could be accessed from the data.world API and the Spotify API, which is their original source.
+
+```{r}
+billboard <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-09-14/billboard.csv")
+
+audio_features <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-09-14/audio_features.csv")
+```
+
+# Exploratory Data Analysis
+
+Our goal is to build an understanding and intuition of the data that we are utilizing for analysis. Further, we should always keep our analysis questions top of mind and look for features in the data that we can exploit for predictive power or that we must address in order to make our work feasible.
+
+A good way to start is to get a basic view of the data we are working with.
+
+```{r}
+glimpse(billboard)
+```
+
+```{r}
+glimpse(audio_features)
+```
+
+Our first question is focused on audio features, so let's explore that dataset first.
+
+```{r}
+summary(audio_features)
+```
+
+## Duplicate entries
+
+There are some duplicate entries in the data. We need to deal with those.
+
+```{r}
+audio_features %>% 
+  add_count(song_id, sort = T) %>% 
+  filter(n == 2)
+```
+
+```{r}
+audio_features <- 
+  audio_features %>% 
+  rowid_to_column() %>% 
+  group_by(song_id) %>% 
+  filter(rowid == min(rowid)) %>% 
+  ungroup()
+```
+
+## Missing values
+
+```{r}
+audio_features %>% 
+  rowwise() %>% 
+  mutate(NA_in_row = sum(is.na(cur_data()))) %>% 
+  ungroup() %>% 
+  count(NA_in_row, sort = T)
+```
+
+Most of the missingness is coming from the song characteristics fields. Those are important for our analysis, so let's remove any field that has most of these values missing. They would be useless for analysis otherwise.
+
+```{r}
+audio_features <-
+  audio_features %>% 
+  rowwise() %>% 
+  mutate(NA_in_row = sum(is.na(cur_data()))) %>% 
+  ungroup() %>% 
+  filter(NA_in_row < 10) %>% 
+  select(-NA_in_row)
+```
+
+You'll note that there are still some fields that include `NA` values. We'll come back and deal with these later.
+
+```{r}
+audio_features %>% 
+  summary()
+```
+
+## Distributions
+
+Understanding distributions of numeric fields is extremely valuable.
+
+```{r}
+generate_histograms <- function(df, 
+                                bins = 100,
+                                boundary = 0) {
+  
+  names_doubles <- 
+    df %>% 
+    select(where(is.double)) %>% 
+    names() %>% 
+    set_names()
+  
+  names_doubles %>% 
+    map(~ {ggplot(data = df, 
+                  aes(x = .data[[.x]])) +
+        geom_histogram(bins = bins,
+                       boundary = boundary) +
+        labs(title = .x)})
+  
+}
+```
+
+```{r}
+generate_histograms(audio_features)
+```
+
+Typically, we would want to address any non-normal distributions that we encounter:
+
+-   `spotify_track_duration_ms` - has a very long tail. We may want to truncate this by forcing any values above a certain number of standard deviations (likely 3) from the mean to be *at* 3 standard devations from the mean
+-   `danceability` - this looks normal.
+-   `energy` - not quite normal, but has a slight left skew (`r round(skewness(audio_features$energy), 2)`)
+-   `key` - this isn't truly numeric, so we have to deal with that
+-   `loudness` - this is even more left skewed (`r round(skewness(audio_features$loudness), 2)`)
+-   `mode` - not truly numeric
+-   `speechiness` - appears to follow a power law
+-   `acousticness` - not quite a power law
+-   `instrumentalness` - appears to follow a power law. However, we should remove this because there does not appear to be enough deviation between observations to justify utilizing it. Nearly all observations are between 0 and 0.01.
+-   `liveness` - very right skewed (`r round(skewness(audio_features$liveness), 2)`)
+-   `valence` - nearly a uniform distribution (`r round(skewness(audio_features$valence), 2)`)
+-   `tempo` - normal enough
+-   `time_signature` - not truly numeric
+-   `spotify_track_popularity` - strange distribution; likely not worth considering for segmentation because it is not a characteristic of a song
+
+Let's begin to narrow our dataset down to only features we might use for clustering. From here we can begin to address some of the issues with each field.
+
+```{r}
+audio_features_selected <- 
+  audio_features %>% 
+  select(song_id, song, performer,
+         danceability, energy, loudness, speechiness, acousticness, 
+         liveness, valence, tempo)
+```
+
+```{r}
+audio_features_selected %>% summary()
+```
+
+```{r}
+audio_features_selected_scaled <- 
+  audio_features_selected %>% 
+  mutate(across(where(is.numeric), ~scale(.)))
+```
+
+```{r}
+generate_histograms(audio_features_selected_scaled)
+```
+
+
+## Correlations
+
+```{r}
+audio_features_selected_scaled %>% 
+  select(where(is.numeric)) %>% 
+  cor() %>% 
+  corrplot.mixed(lower = "number", 
+                 upper = "shade",
+                 order = "hclust",
+                 tl.pos = "lt")
+```
+
+```{r}
+names_doubles_expand <- 
+  audio_features_selected_scaled %>% 
+  select(where(is.numeric)) %>% 
+  colnames() %>% 
+  combn(2) %>% 
+  t() %>% 
+  as_tibble() %>% 
+  rename(col_1 = "V1",
+         col_2 = "V2")
+```
+
+```{r}
+ggplot(data = audio_features_selected_scaled,
+       aes(x = danceability,
+           y = energy)) +
+  geom_point()
+```
+
+```{r}
+ggplot(data = audio_features_selected_scaled,
+       aes(x = danceability,
+           y = energy)) +
+  geom_bin_2d() +
+  geom_smooth(method = "lm",
+              color = "red") +
+  scale_fill_viridis()
+```
+
+```{r}
+map2(.x = names_doubles_expand$col_1,
+     .y = names_doubles_expand$col_2,
+     ~ ggplot(data = audio_features_selected_scaled,
+              aes(x = .data[[.x]],
+                  y = .data[[.y]])) +
+       geom_bin_2d() +
+       geom_smooth(method = "lm",
+                   color = "red") +
+       scale_fill_viridis())
+```
+
+# What groups emerge based upon song characteristics?
+
+## Types of Clustering
+
+[Source](https://www.analytixlabs.co.in/blog/types-of-clustering-algorithms/)
+
+<http://varianceexplained.org/r/kmeans-free-lunch/>
+
+### K-means
+
+#### Benefits
+
+#### Challenges
+
+[Source](https://medium.com/analytics-vidhya/k-means-clustering-everything-you-need-to-know-175dd01766d5)
+
+Outliers --- As we are using distance based approach, K-means is sensitive to outliers. 
+Categorical Data --- K means cannot handle categorical data. This can be dealt in 3 ways --- 
+1. Convert categorical variables to numerical --- → Scale the data --- --- \> apply K-means 
+2. Use Hamming distance instead of Euclidean distance. [If 2 categorical values are same, make distance ==0 else 1] 
+3. Compute mode. Dimension reduction --- If data is high dimensional, it is good to reduce dimensionality of our data 
+Missing Values --- These should be treated. 
+Multi col-linearity --- not badly affected since it calculates distance. However if we delete some features based on collinearity, we might bring some samples closer together.
+
+## Generate Clusters
+
+```{r}
+set.seed(82)
+```
+
+```{r}
+k_range <- 1:9
+
+kclusts <- 
+  tibble(k = k_range) %>% 
+  mutate(kclust = map(k, ~kmeans(audio_features_selected_scaled %>% 
+                                   select(where(is.numeric)), .x)),
+         tidied = map(kclust, tidy),
+         glanced = map(kclust, glance),
+         augmented = map(kclust, augment, audio_features_selected_scaled)
+  )
+```
+
+```{r}
+clusters <- 
+  kclusts %>%
+  unnest(cols = c(tidied))
+
+assignments <- 
+  kclusts %>% 
+  unnest(cols = c(augmented))
+
+clusterings <- 
+  kclusts %>%
+  unnest(cols = c(glanced))
+
+```
+
+## Elbow Method
+
+```{r}
+ggplot(clusterings, aes(k, tot.withinss)) +
+  geom_line() +
+  geom_point() +
+  scale_x_continuous(breaks = k_range)
+```
+
+## Cluster Sizes
+
+```{r}
+assignments %>% 
+  filter(k == 8) %>% 
+  count(.cluster, sort = T) %>% 
+  ggplot(aes(x = n,
+             y = .cluster)) +
+  geom_col(fill = "navy") +
+  geom_text(aes(label = scales::comma(n)),
+            nudge_x = 200,
+            size = 3,
+            color = "dark gray") +
+  scale_x_continuous(labels = scales::comma) +
+  coord_cartesian(clip = "off") +
+  labs(x = "",
+       y = "",
+       title = "Number of observations per cluster") +
+  theme(panel.grid.major.y = element_blank())
+```
+
+
+## Centroids
+
+```{r}
+centroids_long <-
+  assignments %>% 
+  filter(k == 9) %>% 
+  pivot_longer(where(is.double)) %>% 
+  group_by(k, .cluster, name) %>% 
+  summarize(value = mean(value)) %>% 
+  ungroup()
+
+centroids <- 
+  centroids_long %>% 
+  pivot_wider(names_from = name, 
+              values_from = value)
+```
+
+```{r}
+centroids_long %>% 
+  mutate(polarity = value > 0,
+         text_position = if_else(polarity, value + 0.75, value - 0.75)) %>% 
+  ggplot(aes(x = name,
+             y = value,
+             fill = polarity)) +
+  geom_hline(yintercept = 0,
+             linetype = 5,
+             color = "dark gray") +
+  geom_col(width = 0.5) +
+  geom_text(aes(y = text_position,
+                label = round(value, 2)),
+            color = "black",
+            size = 3) +
+  scale_y_continuous(position = "right") +
+  scale_fill_manual(values = c("red", "navy")) +
+  coord_cartesian(ylim = c(-3, 3),
+                  clip = "off") +
+  facet_grid(.cluster ~ name, scales = "free_x", switch = "y") +
+  labs(x = "",
+       y = "",
+       title = "Centroids by cluster",
+       subtitle = "Mean standard deviaton of features by cluster") +
+  theme(legend.position = "none",
+        strip.background = element_rect(fill = "dark gray",
+                                        color = NULL,
+                                        size = 0),
+        strip.text = element_text(color = "white",
+                                  face = "bold"),
+        strip.text.y.left = element_text(angle = 0),
+        panel.grid.major.x = element_blank(),
+        axis.text.x = element_blank(),
+        panel.background = element_rect(fill = "#f8f8f8",
+                                        color = NULL,
+                                        size = 0))
+```
+
+```{r}
+euclidean <- function(a, b) sqrt(sum((a - b)^2))
+```
+
+## TODO: TURN INTO DISTANCE FUNCTION
+
+```{r}
+centroids_sample <- 
+  centroids %>% 
+  filter(k == 9,
+         .cluster == 1) %>% 
+  select(k, .cluster,
+         danceability, energy, loudness, speechiness, acousticness,
+         liveness, valence, tempo)
+
+selected_columns <- colnames(centroids_sample)[-1:-2]
+
+assignments_sample <-
+  assignments %>% 
+  filter(k == 9,
+         .cluster == 1) %>% 
+  select(k, .cluster, song_id, song, performer, 
+         danceability, energy, loudness, speechiness, acousticness,
+         liveness, valence, tempo)
+
+sqrt(rowSums((assignments_sample[1, selected_columns] - centroids_sample[,selected_columns]) ^ 2))
+
+```
+
+```{r}
+assignments %>% 
+  filter(k == 9,
+         .cluster == 1)
+```
+
+
+```{r}
+assignments
+```
+
+
+```{r}
+km_dist <- function(assignment_df, centroid_df, cluster) {
+  
+  centroid_selected <- 
+    centroid_df %>% 
+    filter(k == 9,
+           .cluster == cluster) %>% 
+    select(k, .cluster,
+           danceability, energy, loudness, speechiness, acousticness,
+           liveness, valence, tempo)
+  
+  selected_columns <- colnames(centroids_sample)[-1:-2]
+  
+  assignment_selected <-
+    assignment_df %>% 
+    filter(k == 9,
+           .cluster == cluster) %>% 
+    select(k, .cluster, song_id, song, performer, 
+           danceability, energy, loudness, speechiness, acousticness,
+           liveness, valence, tempo)
+  
+  assignment_df %>% 
+    mutate(dist = sqrt(rowSums((assignment_selected[row_number(), selected_columns] - centroid_selected[,selected_columns]) ^ 2)))
+  
+}
+```
+
+```{r}
+km_dist(assignments, centroids, 1)
+```

@@ -1,0 +1,48 @@
+---
+title: "Billboard Analysis"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Background
+
+Our data comes from the [Tidy Tuesday repository](https://github.com/rfordatascience/tidytuesday/blob/master/data/2021/2021-09-14/readme.md). This is a great place to source datasets from for learning exercises. There are two datasets that we will work with:
+
+-   Historical Billboard Hot 100
+-   Spotify audio features
+
+From the Tidy Tuesday description:
+
+> The data this week comes from [Data.World](https://data.world/kcmillersean/billboard-hot-100-1958-2017#) by way of Sean Miller, [Billboard.com](http://billboard.com/) and Spotify.
+>
+> [Billboard Top 100 - Wikipedia](https://en.wikipedia.org/wiki/Billboard_Hot_100)
+>
+> > The Billboard Hot 100 is the music industry standard record chart in the United States for songs, published weekly by Billboard magazine. Chart rankings are based on sales (physical and digital), radio play, and online streaming in the United States.
+>
+> Billboard Top 100 [Article](https://www.billboard.com/articles/business/chart-beat/9335811/drake-breaks-record-most-hot-100-entries)
+>
+> > Drake rewrites the record for the most entries ever on the Billboard Hot 100, as he lands his 208th career title on the latest list, dated March 21
+>
+> [ThePudding](https://pudding.cool/2017/03/music-history/) has a neat interactive experience by year with audio!
+
+```{r, echo = FALSE}
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(
+  tidyverse, 
+  moments,
+  corrplot, 
+  viridis,
+  tidymodels
+)
+
+theme_set(theme_minimal())
+```
+
+
+```{r}
+audio_features <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-09-14/audio_features.csv")
+```

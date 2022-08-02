@@ -1,0 +1,203 @@
+---
+title: "Live Coding Session"
+author: "Ryan Harrington"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Billboard 100
+
+We will be working with data about Billboard Hot 100 hits. There will be a secondary dataset about song characteristics from Spotify.
+
+Our exploration will focus on two questions:
+
+1.  Can we group together similar sounding songs based upon their characteristics?
+2.  Can we predict which songs will become Billboard top 10 songs at some point?
+
+## Introduce Datasets
+
+-   Introduce datasets
+    -   Spotify
+
+    -   Billboard Hot 100
+-   Describe value of a data dictionary
+    -   Review features of each dataset
+-   Review types of questions you might answer with the data
+    -   What questions would you want to answer given these two datasets?
+
+    -   Guide conversation to two key questions
+
+        -   Can we group together similar sounding songs based upon their characteristics?
+
+            -   Unsupervised learning approach (no labels)
+
+            -   Will answer via clustering (k-means)
+
+        -   Can we predict which songs will become Billboard top 10 songs at some point?
+
+            -   Supervised learning approach (labels)
+
+            -   Will answer via classification modeling (logistic regression, XGBoost)
+
+## Exploratory Data Analysis
+
+-   Goals of exploratory data analysis (EDA)
+
+    -   Understand each feature
+
+        -   Counts for categorical variables
+
+        -   Distributions for continuous variables
+
+        -   Missingness
+
+        -   Outliers
+
+    -   Helps to determine types of modeling that may be possible
+
+        -   Some models handle missingness, outlers, etc. better than others
+
+        -   Some models work best with only continuous variables
+
+        -   Some models work best at different scales of data (i.e. logistic regression vs. neural networks)
+
+    -   Keep business question in mind
+
+    -   Constant iteration
+
+    -   Looking out for ways to transform data (if need be)
+
+        -   Binning
+
+        -   One-hot encoding
+
+        -   Scaling (logarithmic, 0 to 1, etc.)
+
+        -   Feature engineering
+
+        -   Imputation
+
+## Question 1 - Clustering songs based upon features
+
+-   Focus on Spotify dataset of song characteristics
+
+-   K-means clustering
+
+    -   Explain how algorithm works
+
+    -   Select distance metric (Euclidean)
+
+    -   Determine number of groups (k) via elbow method
+
+    -   Assumptions about the data that the algorithm requires
+
+-   Interpretation
+
+## Question 2 - Predicting Billboard Top 10
+
+-   Need both datasets
+
+-   Classification modeling requires labeled data
+
+-   Train vs test data (70/30 split)
+
+-   Creating a dependent variable (`becomes_top_10`)
+
+-   Independent variable selection
+
+    -   Does time on chart matter?
+
+    -   Does past week's performance matter?
+
+        -   Do weeks even further back matter?
+
+    -   Do features about the song matter?
+
+    -   Does artist popularity matter?
+
+-   Logistic regression
+
+    -   Why select this model?
+
+        -   What is it? How does it work?
+
+        -   Pros
+
+            -   Interpretable (we know how each feature impacts likelihood)
+
+            -   Works well with datasets regardless of size (though when features outnumber observations there are issues)
+
+            -   Preferable for linearly separable features
+
+            -   Computationally inexpensive
+
+        -   Cons
+
+            -   Linear boundaries, so may fail at modeling more complex relationships
+
+            -   Requires no / limited multicollinearity
+
+    -   Train / Validate
+
+        -   k-fold cross validation
+
+    -   Test
+
+        -   Model evaluation
+
+            -   Confusion matrices
+
+            -   AUC Scores
+
+            -   Overfitting
+
+            -   Bias / variance tradeoff
+
+-   Gradient boosting (XGBoost)
+
+    -   Why select this model?
+
+        -   What is it? How does it work?
+
+            -   Ensemble model where weak learners are iteratively improved upon
+
+            -   Tree based model
+
+        -   Pros
+
+            -   High level of predictive accuracy
+
+            -   Flexible - hyperparameter tuning
+
+            -   Works great with minimal pre-processing
+
+            -   Does not necessarily require imputation
+
+            -   Can model complex, non-linear relationships
+
+        -   Cons
+
+            -   Can easily overfit the data
+
+            -   Computationally expensive
+
+            -   Potentially requires a large grid search
+
+            -   Less interpretable
+
+    -   Train / validate
+
+    -   Test
+
+    -   Model comparison
+
+        -   How does XGBoost compare to logistic regression?
+
+        -   Why would I select one versus the other?
+
+## Deployment
+
+Simple app for inputting a new song's information, output would be the likelihood of it becoming a top 10 song
